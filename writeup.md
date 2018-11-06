@@ -46,13 +46,13 @@ A **1x1 convolution** simply maps an input pixel with all its channels to an out
 
 When we convert our last fully connected (FC) layer of the CNN to a **1x1** convolutional layer we choose our new conv layer to be big enough so that it will enable us to have this localization effect scaled up to our original input image size then activate pixels to indicate objects and their approximate locations in the scene as shown in above figure. replacement of fully-connected layers with convolutional layers presents an added advantage that during inference (testing your model), you can feed images of any size into your trained network.
 
-One problem with this approach is that we **lose some information** every time we do convolution (**encoding or down-sampling**); we keep the smaller picture (the local context) and lose the bigger picture (the global context) for example if we are using max-pooling to reduce the size of the input, and allow the neural network to focus on only the most important elements. Max pooling does this by only retaining the maximum value for each filtered area, and removing the remaining values.
+One problem with this approach is that we **lose some information** every time we do convolution (**encoding or down-sampling**); we keep the smaller picture (the local context) and lose the bigger picture (the global context) for example if we are using max-pooling to reduce the size of the input, and allow the neural network to focus on only the most important elements. **Max pooling** does this by only retaining the maximum value for each filtered area, and removing the remaining values.
 
 <p align="center"> <img src="./docs/writeup_images/max_pooling.png"> </p>
 
-To solve this problem we also get some activation from previous layers (What we call **skip connections**)and sum/interpolate them together with the **up-sampled** outputs when **decoding** from the previous layer as shown in below diagram.
+To solve this problem we also get some activation from previous layers (What we call **skip connections**) and sum/interpolate them together with the **up-sampled** outputs when **decoding** from the previous layer as shown in below diagram.
 
-<p align="center"> <img src="./docs/writeup_images/enc_dec.png"> </p>
+<p align="center"> <img src="./docs/writeup_images/skip-connection.png"> </p>
 
 **Bilinear Upsampling** by a factor of 2 is generally used in the **decoder blocks** to recover resolution then add it together with the previous encoders layers outputs to get the required up-size. Different factors of upsampling can be used if required.
 
@@ -141,7 +141,7 @@ def bilinear_upsample(input_layer):
 def encoder_block(input_layer, filters, strides):
 
     # Create a separable convolution layer using the separable_conv2d_batchnorm() function.
-    output_layer = separable_conv2d_batchnorm(input_layer, filters, strides)
+    output_layer = separable_conv2d_batchnorm(input_layer, filters, strides=strides)
 
     return output_layer
 ```
@@ -153,15 +153,14 @@ def encoder_block(input_layer, filters, strides):
 ```python
 def decoder_block(small_ip_layer, large_ip_layer, filters):
 
-    # Upsample the small input layer using the bilinear_upsample() function.
-    upsampled_small_ip_layer = bilinear_upsample(small_ip_layer)
+    # TODO Upsample the small input layer using the bilinear_upsample() function.
+    upsampled = bilinear_upsample(small_ip_layer)
 
-    # Concatenate the upsampled and large input layers using layers.concatenate
-    output_layer = layers.concatenate([upsampled_small_ip_layer, large_ip_layer])
+    # TODO Concatenate the upsampled and large input layers using layers.concatenate
+    input_layer = layers.concatenate([upsampled, large_ip_layer])
 
-    # Add some number of separable convolution layers
-    output_layer = separable_conv2d_batchnorm( output_layer, filters, strides=1)
-    output_layer = separable_conv2d_batchnorm( output_layer, filters, strides=1)
+    # TODO Add some number of separable convolution layers
+    output_layer = separable_conv2d_batchnorm(input_layer, filters)
 
     return output_layer
 ```
@@ -171,55 +170,35 @@ def decoder_block(small_ip_layer, large_ip_layer, filters):
 Last layer in FCN is regular convolution layer with softmax activation and same padding:
 
 ```python
-    outputs = layers.Conv2D(num_classes, 1, activation='softmax', padding='same')(layer07)
+    outputs = layers.Conv2D(num_classes, 1, activation='softmax', padding='same')(inputs)
 ```
 
 #### Put all together to the FCN model:
 
-Below is the code calling blocks explained above, I have added a print function after each block to help showing the size of each layer in the model.
+Below is the code calling blocks explained above.
 
 ```python
+
 def fcn_model(inputs, num_classes):
 
-    # Add Encoder Blocks.
+    # TODO Add Encoder Blocks.
     # Remember that with each encoder layer, the depth of your model (the number of filters) increases.
-    print("Inputs  shape:",inputs.shape, "  \tImage Size in Pixels")
+    strides = 2
+    encoder1 = encoder_block(inputs, 128, strides)
+    encoder2 = encoder_block(encoder1, 64, strides)
+    encoder  = encoder_block(encoder2, 32, strides)
 
-    layer01 = encoder_block(inputs , filters=32 , strides=2)
-    print("layer01 shape:",layer01.shape, "  \tEncoder Block 1")
+    # TODO Add 1x1 Convolution layer using conv2d_batchnorm().
+    onebyone = conv2d_batchnorm(encoder, 32, kernel_size=1, strides=1)
 
-    layer02 = encoder_block(layer01, filters=64 , strides=2)
-    print("layer02 shape:",layer02.shape, "  \tEncoder Block 2")
+    # TODO: Add the same number of Decoder Blocks as the number of Encoder Blocks
+    decoder1 = decoder_block(onebyone, encoder2, 32)
+    decoder2 = decoder_block(decoder1, encoder1, 64)
+    x = decoder_block(decoder2, inputs, 128)    
 
-    layer03 = encoder_block(layer02, filters=128, strides=2)
-    print("layer03 shape:",layer03.shape, "\tEncoder Block 3")
-
-    # Add 1x1 Convolution layer using conv2d_batchnorm().
-    layer04 = conv2d_batchnorm(layer03, filters=256, kernel_size=1, strides=1)
-    print("layer04 shape:",layer04.shape, "\t1x1 Conv Layer")
-
-    # Add the same number of Decoder Blocks as the number of Encoder Blocks
-    layer05 = decoder_block(layer04, layer02, filters=128 )
-    print("layer05 shape:",layer05.shape, "\tDecoder Block 1")
-
-    layer06 = decoder_block(layer05, layer01, filters=64  )
-    print("layer06 shape:",layer06.shape, "  \tDecoder Block 2")
-
-    layer07 = decoder_block(layer06, inputs , filters=32  )
-    print("layer07 shape:",layer07.shape, "\tDecoder Block 3")
-
-    # The function returns the output layer of your model.
-    # "layer07" is the final layer obtained from the last decoder_block()
-
-    outputs = layers.Conv2D(num_classes, 1, activation='softmax', padding='same')(layer07)
-    print("Outputs shape:",outputs.shape, "\tOutput Size in Pixel")
-
-    return outputs
+    # The function returns the output layer of your model. "x" is the final layer obtained from the last decoder_block()
+    return layers.Conv2D(num_classes, 1, activation='softmax', padding='same')(x)
 ```
-
-And the FCN model diagram is as shown below:
-
-<p align="center"> <img src="./docs/writeup_images/fcn_diagram.png"> </p>
 
 ### Hyper-Parameter Tuning:
 
