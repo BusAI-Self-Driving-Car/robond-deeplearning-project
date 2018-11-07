@@ -184,17 +184,17 @@ def fcn_model(inputs, num_classes):
     # TODO Add Encoder Blocks.
     # Remember that with each encoder layer, the depth of your model (the number of filters) increases.
     strides = 2
-    encoder1 = encoder_block(inputs, 128, strides)
+    encoder1 = encoder_block(inputs, 32, strides)
     encoder2 = encoder_block(encoder1, 64, strides)
-    encoder  = encoder_block(encoder2, 32, strides)
+    encoder  = encoder_block(encoder2, 128, strides)
 
     # TODO Add 1x1 Convolution layer using conv2d_batchnorm().
-    onebyone = conv2d_batchnorm(encoder, 32, kernel_size=1, strides=1)
+    onebyone = conv2d_batchnorm(encoder, 256, kernel_size=1, strides=1)
 
     # TODO: Add the same number of Decoder Blocks as the number of Encoder Blocks
-    decoder1 = decoder_block(onebyone, encoder2, 32)
+    decoder1 = decoder_block(onebyone, encoder2, 128)
     decoder2 = decoder_block(decoder1, encoder1, 64)
-    x = decoder_block(decoder2, inputs, 128)    
+    x = decoder_block(decoder2, inputs, 32)    
 
     # The function returns the output layer of your model. "x" is the final layer obtained from the last decoder_block()
     return layers.Conv2D(num_classes, 1, activation='softmax', padding='same')(x)
@@ -206,18 +206,18 @@ In the following sections I will explain how I tuned each parameter:
 
 #### Batch Size:
 
-Batch Size indicates the number of training samples/images that get propagated through the network in a single pass. On my Dell PC, I was always getting the "**ResourceExhaustedError**" error until I switched the batch size to **16**.
+Batch Size indicates the number of training samples/images that get propagated through the network in a single pass. On my Dell PC, I was always getting the "**ResourceExhaustedError**" error until I switched the batch size to **20**.
 
 #### Workers:
 
-Workers defines the maximum number of processes to spin up. I didn't challenge this since the performance satisfied me just well. SO I simply kept it as 2.
+Workers defines the maximum number of processes to spin up. I didn't challenge this too much since the performance satisfied me just well. So I simply kept it as **2**.
 
 #### Steps Per Epoch:
 
 Steps Per Epoch means the number of batches of training images that go through the network in 1 epoch. One recommended value to try would be based on the total number of images in training dataset divided by the batch_size.
 
 ```
-steps_per_epoch = 4131/16 = 258.1875 **aprox. 259**
+steps_per_epoch = 4131/20 = 206.55 **aprox. 210**
 ```
 
 #### Validation Steps:
@@ -225,18 +225,18 @@ steps_per_epoch = 4131/16 = 258.1875 **aprox. 259**
 Validation Steps means the number of batches of validation images that go through the network in 1 epoch. This is similar to steps_per_epoch, except validation_steps is for the validation dataset.
 
 ```
-validation_steps=1184/20=74 **aprox. 74**
+validation_steps=1184/20=59.2 **aprox. 60**
 ```
 
 #### Learning Rate:
 
-Learning Rate is the parameter that controls the size of weight and bias changes in each learning step. Among the trials, **0.005** stood out since it allowed to converge to a satisfying accuracy with a considerable speed.
+Learning Rate is the parameter that controls the size of weight and bias changes in each learning step. Among the trials, **0.001** stood out since it allowed to converge to a satisfying accuracy with a considerable speed.
 
 #### Number of Epochs:
 
 Number of Epochs shows the number of times the entire training dataset gets propagated through the network. I increased it to **50** since it made the accuracy met the rubric.
 
-### Evaluation
+## 4. Evaluation
 
 We will be using the IoU to calculate the final score.
 
@@ -244,9 +244,9 @@ We will be using the IoU to calculate the final score.
 
 <p align="center"> <img src="./docs/writeup_images/iou.png"> </p>
 
-Sum all the true positives, etc from the three datasets to get a weight for the score: **0.7341490545050056**
+Sum all the true positives, etc from the three datasets to get a weight for the score: **0.721627408993576**
 
-The IoU for the dataset that never includes the hero is excluded from grading: **0.561794675106**
+The IoU for the dataset that never includes the hero is excluded from grading: **0.5640716392445396**
 
 The Final Grade Score is the pixel wise:
 
@@ -254,9 +254,9 @@ The Final Grade Score is the pixel wise:
 average_IoU*(n_true_positive/(n_true_positive+n_false_positive+n_false_negative))
 ```
 
-So the score is: **0.4159221490946398**
+So the score is: **0.40704955551479627**
 
-### Testing Model in the Simulator
+## 5. Testing Model in the Simulator
 
 I have selected the best model from the above mentioned and copied it to the code folder, started the simulator, then ran the following command to test the model in simulator:
 
@@ -265,21 +265,19 @@ $ python3 follower.py --pred_viz model_weights
 ```
 The recording of the test is on the following YouTube link
 
-[![test video]()]()
+(TBD)
 
-## HTML version of model_training.ipynb notebook
+## 6. HTML version of model_training.ipynb notebook
 
 HTML version of the model_training.ipynb notebook is on this [link](./model_training.html)
 
-## References:
+## 7. References:
 
 * http://iamaaditya.github.io/2016/03/one-by-one-convolution/
 
 * http://deeplearning.net/software/theano/tutorial/conv_arithmetic.html
 
 * https://stats.stackexchange.com/questions/194142/what-does-1x1-convolution-mean-in-a-neural-network
-
-* https://www.quora.com/What-is-an-Encoder-Decoder-in-Deep-Learning/answer/Christian-Baumgartner-3?srid=ison
 
 * https://courses.cs.washington.edu/courses/cse576/17sp/notes/Sachin_Talk.pdf
 
